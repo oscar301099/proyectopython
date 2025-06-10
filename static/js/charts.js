@@ -156,40 +156,50 @@ document.addEventListener('DOMContentLoaded', function() {
   
   // Función para cargar datos
   function loadData() {
-      const chartType = document.getElementById('chart-type').value;
-      const startDate = document.getElementById('start-date').value;
-      const endDate = document.getElementById('end-date').value;
-      
-      fetch(`/get_data?chart_type=${chartType}&start_date=${startDate}&end_date=${endDate}`)
-          .then(response => response.json())
-          .then(data => {
-              // Actualizar gráfico de ganancias
-              if (data.ganancias.labels.length > 0) {
-                  gananciasChart.data.labels = data.ganancias.labels;
-                  gananciasChart.data.datasets[0].data = data.ganancias.data;
-                  gananciasChart.update();
-                  
-                  // Actualizar mensaje de estado
-                  document.getElementById('status-message').textContent = 
-                      `Ganancias: ${data.ganancias.data.length} registros`;
-              }
-              
-              // Actualizar gráfico de gastos
-              if (data.gastos.labels.length > 0) {
-                  gastosChart.data.labels = data.gastos.labels;
-                  gastosChart.data.datasets[0].data = data.gastos.data;
-                  gastosChart.update();
-                  
-                  // Actualizar mensaje de estado
-                  document.getElementById('status-message').textContent += 
-                      ` | Gastos: ${data.gastos.data.length} registros`;
-              }
-          })
-          .catch(error => {
-              console.error('Error:', error);
-              document.getElementById('status-message').textContent = 'Error al cargar datos';
-          });
+    const chartType = document.getElementById('chart-type').value;
+    const startDate = document.getElementById('start-date').value;
+    const endDate = document.getElementById('end-date').value;
+  
+    fetch(`/get_data?chart_type=${chartType}&start_date=${startDate}&end_date=${endDate}`)
+      .then(response => response.json())
+      .then(data => {
+        // Validar y asignar ganancias
+        if (data.ganancias && data.ganancias.labels && data.ganancias.data) {
+          // Asegurarse que hay igual cantidad de labels y datos
+          if (data.ganancias.labels.length === data.ganancias.data.length) {
+            gananciasChart.data.labels = data.ganancias.labels;
+            gananciasChart.data.datasets[0].data = data.ganancias.data;
+            gananciasChart.update();
+  
+            document.getElementById('status-message').textContent =
+              `Ganancias: ${data.ganancias.data.length} registros`;
+          } else {
+            console.warn('Ganancias: cantidad de labels y datos no coincide.');
+          }
+        }
+  
+        // Validar y asignar gastos
+        if (data.gastos && data.gastos.labels && data.gastos.data) {
+          // Convertir gastos.data a números (por si vienen como strings)
+          const gastosDataNum = data.gastos.data.map(d => Number(d));
+          if (data.gastos.labels.length === gastosDataNum.length) {
+            gastosChart.data.labels = data.gastos.labels;
+            gastosChart.data.datasets[0].data = gastosDataNum;
+            gastosChart.update();
+  
+            document.getElementById('status-message').textContent +=
+              ` | Gastos: ${gastosDataNum.length} registros`;
+          } else {
+            console.warn('Gastos: cantidad de labels y datos no coincide.');
+          }
+        }
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        document.getElementById('status-message').textContent = 'Error al cargar datos';
+      });
   }
+  
   
   // Función para generar predicciones
   function generatePredictions() {
