@@ -154,118 +154,199 @@ document.addEventListener('DOMContentLoaded', function() {
       });
   }
   
-  // Función para cargar datos
+  // Función para cargar datos - VERSIÓN CORREGIDA
   function loadData() {
     const chartType = document.getElementById('chart-type').value;
     const startDate = document.getElementById('start-date').value;
     const endDate = document.getElementById('end-date').value;
-  
+
+    // Mostrar indicador de carga
+    document.getElementById('status-message').textContent = 'Cargando datos...';
+    
     fetch(`/get_data?chart_type=${chartType}&start_date=${startDate}&end_date=${endDate}`)
-      .then(response => response.json())
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+      })
       .then(data => {
-        // Validar y asignar ganancias
-        if (data.ganancias && data.ganancias.labels && data.ganancias.data) {
-          // Asegurarse que hay igual cantidad de labels y datos
-          if (data.ganancias.labels.length === data.ganancias.data.length) {
-            gananciasChart.data.labels = data.ganancias.labels;
-            gananciasChart.data.datasets[0].data = data.ganancias.data;
+        // Validación básica de la estructura de datos
+        if (!data || (typeof data !== 'object')) {
+          throw new Error('Formato de datos inválido');
+        }
+
+        // Manejo robusto de ganancias
+        if (data.ganancias) {
+          try {
+            // Asegurar que tenemos arrays válidos
+            const gananciasLabels = Array.isArray(data.ganancias.labels) ? data.ganancias.labels : [];
+            const gananciasData = Array.isArray(data.ganancias.data) ? data.ganancias.data : [];
+            
+            // Normalizar datos (convertir a números y manejar valores faltantes)
+            const normalizedGananciasData = gananciasData.map(d => {
+              const num = Number(d);
+              return isNaN(num) ? 0 : num;
+            });
+            
+            // Emparejar labels con datos (tomar el mínimo de ambos)
+            const minLength = Math.min(gananciasLabels.length, normalizedGananciasData.length);
+            const pairedGananciasLabels = gananciasLabels.slice(0, minLength);
+            const pairedGananciasData = normalizedGananciasData.slice(0, minLength);
+            
+            // Actualizar gráfico
+            gananciasChart.data.labels = pairedGananciasLabels;
+            gananciasChart.data.datasets[0].data = pairedGananciasData;
             gananciasChart.update();
-  
-            document.getElementById('status-message').textContent =
-              `Ganancias: ${data.ganancias.data.length} registros`;
-          } else {
-            console.warn('Ganancias: cantidad de labels y datos no coincide.');
+            
+            document.getElementById('status-message').textContent = 
+              `Ganancias: ${pairedGananciasData.length} registros válidos`;
+            
+            if (gananciasLabels.length !== normalizedGananciasData.length) {
+              console.warn(`Ganancias: Se esperaban ${gananciasLabels.length} labels pero hay ${normalizedGananciasData.length} datos. Usando ${minLength} puntos.`);
+            }
+          } catch (e) {
+            console.error('Error procesando datos de ganancias:', e);
           }
         }
-  
-        // Validar y asignar gastos
-        if (data.gastos && data.gastos.labels && data.gastos.data) {
-          // Convertir gastos.data a números (por si vienen como strings)
-          const gastosDataNum = data.gastos.data.map(d => Number(d));
-          if (data.gastos.labels.length === gastosDataNum.length) {
-            gastosChart.data.labels = data.gastos.labels;
-            gastosChart.data.datasets[0].data = gastosDataNum;
+
+        // Manejo robusto de gastos
+        if (data.gastos) {
+          try {
+            // Asegurar que tenemos arrays válidos
+            const gastosLabels = Array.isArray(data.gastos.labels) ? data.gastos.labels : [];
+            const gastosData = Array.isArray(data.gastos.data) ? data.gastos.data : [];
+            
+            // Normalizar datos (convertir a números y manejar valores faltantes)
+            const normalizedGastosData = gastosData.map(d => {
+              const num = Number(d);
+              return isNaN(num) ? 0 : num;
+            });
+            
+            // Si no hay labels, crear unos genéricos basados en el índice
+            const finalGastosLabels = gastosLabels.length > 0 ? 
+              gastosLabels.slice(0, normalizedGastosData.length) : 
+              Array.from({length: normalizedGastosData.length}, (_, i) => `Dato ${i+1}`);
+            
+            // Actualizar gráfico
+            gastosChart.data.labels = finalGastosLabels;
+            gastosChart.data.datasets[0].data = normalizedGastosData;
             gastosChart.update();
-  
-            document.getElementById('status-message').textContent +=
-              ` | Gastos: ${gastosDataNum.length} registros`;
-          } else {
-            console.warn('Gastos: cantidad de labels y datos no coincide.');
+            
+            document.getElementById('status-message').textContent += 
+              ` | Gastos: ${normalizedGastosData.length} registros`;
+            
+            if (gastosLabels.length > 0 && gastosLabels.length !== normalizedGastosData.length) {
+              console.warn(`Gastos: Se esperaban ${gastosLabels.length} labels pero hay ${normalizedGastosData.length} datos. Usando ${Math.min(gastosLabels.length, normalizedGastosData.length)} puntos.`);
+            }
+          } catch (e) {
+            console.error('Error procesando datos de gastos:', e);
           }
         }
       })
       .catch(error => {
         console.error('Error:', error);
-        document.getElementById('status-message').textContent = 'Error al cargar datos';
+        document.getElementById('status-message').textContent = 'Error al cargar datos: ' + error.message;
       });
   }
-  
-  
+
   // Función para generar predicciones
   function generatePredictions() {
       const modelType = document.getElementById('model-type').value;
       const predictionDays = document.getElementById('prediction-days').value;
       const predictionPeriod = document.getElementById('prediction-period').value;
       
+      // Mostrar indicador de carga
+      document.getElementById('prediction-metrics').innerHTML = '<p>Generando predicciones...</p>';
+      
       fetch(`/get_predictions?model_type=${modelType}&prediction_days=${predictionDays}&prediction_period=${predictionPeriod}`)
-          .then(response => response.json())
+          .then(response => {
+            if (!response.ok) {
+              throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+          })
           .then(data => {
               if (!data) {
                   throw new Error('No se recibieron datos de predicción');
               }
               
-              // Actualizar gráfico de predicción
-              predictionChart.data.labels = [
-                  ...data.ganancias.real.labels,
-                  ...data.ganancias.predicted.labels
-              ];
-              
-              predictionChart.data.datasets[0].data = [
-                  ...data.ganancias.real.data,
-                  ...Array(data.ganancias.predicted.labels.length).fill(null)
-              ];
-              
-              predictionChart.data.datasets[1].data = [
-                  ...Array(data.ganancias.real.labels.length).fill(null),
-                  ...data.ganancias.predicted.data
-              ];
-              
-              predictionChart.data.datasets[2].data = [
-                  ...data.gastos.real.data,
-                  ...Array(data.gastos.predicted.labels.length).fill(null)
-              ];
-              
-              predictionChart.data.datasets[3].data = [
-                  ...Array(data.gastos.real.labels.length).fill(null),
-                  ...data.gastos.predicted.data
-              ];
-              
-              predictionChart.update();
-              
-              // Mostrar métricas
-              let metricsHTML = '<h5>Métricas de Predicción</h5>';
-              
-              if (data.metrics.ganancias.r2 !== null) {
-                  metricsHTML += `
-                      <p><strong>Ganancias:</strong> 
-                      R² = ${data.metrics.ganancias.r2.toFixed(3)}, 
-                      MAE = ${data.metrics.ganancias.mae.toFixed(2)}</p>
-                  `;
+              // Validación y normalización de datos de predicción
+              try {
+                // Ganancias reales
+                const gananciasRealLabels = Array.isArray(data.ganancias?.real?.labels) ? data.ganancias.real.labels : [];
+                const gananciasRealData = Array.isArray(data.ganancias?.real?.data) ? 
+                  data.ganancias.real.data.map(d => Number(d)) : [];
+                
+                // Ganancias predichas
+                const gananciasPredictedLabels = Array.isArray(data.ganancias?.predicted?.labels) ? 
+                  data.ganancias.predicted.labels : [];
+                const gananciasPredictedData = Array.isArray(data.ganancias?.predicted?.data) ? 
+                  data.ganancias.predicted.data.map(d => Number(d)) : [];
+                
+                // Gastos reales
+                const gastosRealData = Array.isArray(data.gastos?.real?.data) ? 
+                  data.gastos.real.data.map(d => Number(d)) : [];
+                
+                // Gastos predichos
+                const gastosPredictedData = Array.isArray(data.gastos?.predicted?.data) ? 
+                  data.gastos.predicted.data.map(d => Number(d)) : [];
+                
+                // Actualizar gráfico de predicción
+                predictionChart.data.labels = [
+                    ...gananciasRealLabels,
+                    ...gananciasPredictedLabels
+                ];
+                
+                predictionChart.data.datasets[0].data = [
+                    ...gananciasRealData,
+                    ...Array(gananciasPredictedLabels.length).fill(null)
+                ];
+                
+                predictionChart.data.datasets[1].data = [
+                    ...Array(gananciasRealLabels.length).fill(null),
+                    ...gananciasPredictedData
+                ];
+                
+                predictionChart.data.datasets[2].data = [
+                    ...gastosRealData,
+                    ...Array(gastosPredictedData.length).fill(null)
+                ];
+                
+                predictionChart.data.datasets[3].data = [
+                    ...Array(gastosRealData.length).fill(null),
+                    ...gastosPredictedData
+                ];
+                
+                predictionChart.update();
+                
+                // Mostrar métricas
+                let metricsHTML = '<h5>Métricas de Predicción</h5>';
+                
+                if (data.metrics?.ganancias?.r2 !== undefined && data.metrics?.ganancias?.mae !== undefined) {
+                    metricsHTML += `
+                        <p><strong>Ganancias:</strong> 
+                        R² = ${Number(data.metrics.ganancias.r2).toFixed(3)}, 
+                        MAE = ${Number(data.metrics.ganancias.mae).toFixed(2)}</p>
+                    `;
+                }
+                
+                if (data.metrics?.gastos?.r2 !== undefined && data.metrics?.gastos?.mae !== undefined) {
+                    metricsHTML += `
+                        <p><strong>Gastos:</strong> 
+                        R² = ${Number(data.metrics.gastos.r2).toFixed(3)}, 
+                        MAE = ${Number(data.metrics.gastos.mae).toFixed(2)}</p>
+                    `;
+                }
+                
+                if (modelType === 'moving_avg') {
+                    metricsHTML += '<p>Modelo de promedio móvil: métricas no aplicables</p>';
+                }
+                
+                document.getElementById('prediction-metrics').innerHTML = metricsHTML;
+              } catch (e) {
+                throw new Error('Error procesando datos de predicción: ' + e.message);
               }
-              
-              if (data.metrics.gastos.r2 !== null) {
-                  metricsHTML += `
-                      <p><strong>Gastos:</strong> 
-                      R² = ${data.metrics.gastos.r2.toFixed(3)}, 
-                      MAE = ${data.metrics.gastos.mae.toFixed(2)}</p>
-                  `;
-              }
-              
-              if (modelType === 'moving_avg') {
-                  metricsHTML += '<p>Modelo de promedio móvil: métricas no aplicables</p>';
-              }
-              
-              document.getElementById('prediction-metrics').innerHTML = metricsHTML;
           })
           .catch(error => {
               console.error('Error:', error);
