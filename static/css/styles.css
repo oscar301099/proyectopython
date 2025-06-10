@@ -1,0 +1,30 @@
+body {
+  background-color: #f8f9fa;
+  padding-top: 20px;
+}
+
+.card {
+  margin-bottom: 20px;
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.card-header {
+  background-color: #f1f8ff;
+  font-weight: bold;
+}
+
+canvas {
+  width: 100% !important;
+  height: 400px !important;
+}
+
+#status-message {
+  font-weight: bold;
+}
+
+#prediction-metrics {
+  background-color: #f8f9fa;
+  padding: 15px;
+  border-radius: 5px;
+  margin-top: 15px;
+}
